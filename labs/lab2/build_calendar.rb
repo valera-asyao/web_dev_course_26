@@ -1,39 +1,55 @@
+# encoding: utf-8
 #!/usr/bin/env ruby
 require 'date'
 
 if ARGV.length != 4
-   puts "неверное число аргументов"
-   exit
- end
-
-teams_file, start_date_str, end_date_str, output_file = ARGV[0], ARGV[1], ARGV[2], ARGV[3]
-
-
-unless File.exists?(teams_file) && File.readable?(teams_file)
-  puts "Файл недоступен для чтения или егор не существует"
+  puts "Неверное количество аргументов."
+  exit 1
 end
 
-begin
-  start_date = Date.strptime(start_date_str, "%d.%m.%Y")
-  rescue
-    puts "Неверный формат начальной даты"
-    exit 1
-  end
+teams_file = ARGV[0]
+start_date_str = ARGV[1]
+end_date_str = ARGV[2]
+output_file = ARGV[3]
 
-begin
-  end_date = Date.strptime(end_date_str, "%d.%m.%Y")
+unless File.exist?(teams_file) && File.readable?(teams_file)
+  puts "Ошибка: Файл с командами '#{teams_file}' не существует или недоступен для чтения."
+  exit 1
+end
+
+def parse_date(str)
+  return nil unless str.length == 10 && str[2] == '.' && str[5] == '.'
+  day = str[0..1]
+  month = str[3..4]
+  year = str[6..9]
+  return nil unless day.match?(/\A\d\d\z/) && month.match?(/\A\d\d\z/) && year.match?(/\A\d\d\d\d\z/)
+  begin
+    Date.new(year.to_i, month.to_i, day.to_i)
   rescue
-    puts "Неверный формат конечной даты"
-    exit 1
+    nil
   end
+end
+
+start_date = parse_date(start_date_str)
+end_date = parse_date(end_date_str)
+
+if start_date.nil?
+  puts "Неверный формат начальной даты.."
+  exit 1
+end
+
+if end_date.nil?
+  puts "Неверный формат конечной даты."
+  exit 1
+end
 
 if start_date > end_date
-  puts "Начальная дата не может быть позже конечной"
+  puts "Ошибка: Начальная дата не может быть позже конечной."
   exit 1
 end
 
 teams = []
-ile.readlines(teams_file).each do |line|
+File.readlines(teams_file, encoding: 'UTF-8').each do |line|
   line = line.strip
   next if line.empty?
 
@@ -44,7 +60,6 @@ ile.readlines(teams_file).each do |line|
       dot_index = i
       break
     end
-    # Пропускаем цифры в начале
     break unless line[i].between?('0', '9')
     i += 1
   end
@@ -54,23 +69,19 @@ ile.readlines(teams_file).each do |line|
       line = line[(dot_index + 2)..]
     elsif dot_index + 1 == line.length
       line = line[0...dot_index]
-    else
     end
   end
 
   line = line.strip
   dash_index = line.index(' - ')
-  if dash_index
-    team_name = line[0...dash_index].strip
-  else
-    team_name = line
-  end
+  team_name = dash_index ? line[0...dash_index].strip : line
 
   teams << team_name unless team_name.empty?
 end
 
 if teams.empty?
-  puts "Файл с командами пуст или не содержит подходящих записей"
+  puts "Файл с командами пустой или не содержит валидных записей."
+  exit 1
 end
 
 eligible_slots = []
@@ -85,16 +96,18 @@ while current <= end_date
 end
 
 if eligible_slots.empty?
-  puts "В указанном диапазоне нет подходящих дней (пятница, суббота, воскресенье)."
+  puts "В указанном диапазоне нет подходящих дней."
   exit 1
 end
 
-begin
-  File.write(output_file, calendar_entries.join("\n"))
-
-  rescue => e
-    puts "Ошибка при записи в файл"
-    exit 1
+calendar_entries = []
+eligible_slots.each_with_index do |(date, time), idx|
+  team = teams[idx % teams.length]
+  formatted_date = date.strftime("%d.%m.%Y")
+  day_name = date.strftime("%a")
+  calendar_entries << "#{formatted_date} (#{day_name}) #{time}: #{team}"
 end
 
-puts "Расписание составлено"
+File.write(output_file, calendar_entries.join("\n"), encoding: 'UTF-8')
+
+puts "Расписание успешно сгенерировано в файл: #{output_file}"
