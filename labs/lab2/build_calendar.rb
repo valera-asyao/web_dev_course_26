@@ -53,32 +53,38 @@ File.readlines(teams_file, encoding: 'UTF-8').each do |line|
   line = line.strip
   next if line.empty?
 
-  dot_index = -1
+  dot_pos = -1
   i = 0
-  while i < line.length
-    if line[i] == '.'
-      dot_index = i
-      break
-    end
-    break unless line[i].between?('0', '9')
+  while i < line.length && line[i] >= '0' && line[i] <= '9'
     i += 1
   end
-
-  if dot_index > 0
-    if dot_index + 1 < line.length && line[dot_index + 1] == ' '
-      line = line[(dot_index + 2)..]
-    elsif dot_index + 1 == line.length
-      line = line[0...dot_index]
-    end
+  if i < line.length && line[i] == '.'
+    dot_pos = i
   end
 
-  line = line.strip
-  dash_index = line.index(' - ')
-  team_name = dash_index ? line[0...dash_index].strip : line
+  if dot_pos >= 0
+    rest_start = dot_pos + 1
+    if rest_start < line.length && line[rest_start] == ' '
+      rest_start += 1
+    end
+    content = line[rest_start..]
+  else
+    content = line
+  end
+
+  content = content.strip
+  next if content.empty?
+
+  separator = ' — '
+  sep_index = content.index(separator)
+  if sep_index
+    team_name = content[0...sep_index].strip
+  else
+    team_name = content
+  end
 
   teams << team_name unless team_name.empty?
 end
-
 if teams.empty?
   puts "Файл с командами пустой или не содержит валидных записей."
   exit 1
