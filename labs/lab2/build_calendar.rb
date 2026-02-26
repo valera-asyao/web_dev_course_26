@@ -46,7 +46,6 @@ File.readlines(teams_file, encoding: 'UTF-8').each do |line|
   line = line.strip
   next if line.empty?
 
-  dot_pos = -1
   i = 0
   while i < line.length && line[i] >= '0' && line[i] <= '9'
     i += 1
