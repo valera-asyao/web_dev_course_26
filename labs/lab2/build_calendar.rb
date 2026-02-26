@@ -3,7 +3,8 @@
 require 'date'
 
 if ARGV.length != 4
-  puts "Неверное количество аргументов."
+  puts "Ошибка: Неверное количество аргументов."
+  puts "Использование: ruby build_calendar.rb teams.txt начальная_дата конечная_дата выходной_файл"
   exit 1
 end
 
@@ -19,12 +20,14 @@ end
 
 def parse_date(str)
   return nil unless str.length == 10 && str[2] == '.' && str[5] == '.'
-  day = str[0..1]
-  month = str[3..4]
-  year = str[6..9]
-  return nil unless day.match?(/\A\d\d\z/) && month.match?(/\A\d\d\z/) && year.match?(/\A\d\d\d\d\z/)
+  day_s, month_s, year_s = str[0..1], str[3..4], str[6..9]
+  [day_s, month_s, year_s].each do |part|
+    part.each_char { |c| return nil unless c >= '0' && c <= '9' }
+  end
+  day, month, year = day_s.to_i, month_s.to_i, year_s.to_i
+  return nil if day < 1 || day > 31 || month < 1 || month > 12
   begin
-    Date.new(year.to_i, month.to_i, day.to_i)
+    Date.new(year, month, day)
   rescue
     nil
   end
@@ -33,18 +36,8 @@ end
 start_date = parse_date(start_date_str)
 end_date = parse_date(end_date_str)
 
-if start_date.nil?
-  puts "Неверный формат начальной даты.."
-  exit 1
-end
-
-if end_date.nil?
-  puts "Неверный формат конечной даты."
-  exit 1
-end
-
-if start_date > end_date
-  puts "Ошибка: Начальная дата не может быть позже конечной."
+if start_date.nil? || end_date.nil? || start_date > end_date
+  puts "Ошибка: Неверный формат или порядок дат."
   exit 1
 end
 
@@ -59,14 +52,8 @@ File.readlines(teams_file, encoding: 'UTF-8').each do |line|
     i += 1
   end
   if i < line.length && line[i] == '.'
-    dot_pos = i
-  end
-
-  if dot_pos >= 0
-    rest_start = dot_pos + 1
-    if rest_start < line.length && line[rest_start] == ' '
-      rest_start += 1
-    end
+    rest_start = i + 1
+    rest_start += 1 if rest_start < line.length && line[rest_start] == ' '
     content = line[rest_start..]
   else
     content = line
@@ -75,18 +62,18 @@ File.readlines(teams_file, encoding: 'UTF-8').each do |line|
   content = content.strip
   next if content.empty?
 
-  separator = ' — '
-  sep_index = content.index(separator)
-  if sep_index
-    team_name = content[0...sep_index].strip
-  else
-    team_name = content
-  end
-
+  sep_index = content.index(' — ')
+  team_name = sep_index ? content[0...sep_index].strip : content
   teams << team_name unless team_name.empty?
 end
+
 if teams.empty?
-  puts "Файл с командами пустой или не содержит валидных записей."
+  puts "Ошибка: Не удалось загрузить ни одной команды."
+  exit 1
+end
+
+if teams.length < 2
+  puts "Ошибка: Для проведения матчей требуется минимум 2 команды."
   exit 1
 end
 
@@ -102,18 +89,36 @@ while current <= end_date
 end
 
 if eligible_slots.empty?
-  puts "В указанном диапазоне нет подходящих дней."
+  puts "Ошибка: В указанном диапазоне нет подходящих дней (пятница, суббота, воскресенье)."
   exit 1
 end
 
-calendar_entries = []
-eligible_slots.each_with_index do |(date, time), idx|
-  team = teams[idx % teams.length]
-  formatted_date = date.strftime("%d.%m.%Y")
-  day_name = date.strftime("%a")
-  calendar_entries << "#{formatted_date} (#{day_name}) #{time}: #{team}"
+matches = []
+team_count = teams.length
+match_index = 0
+
+eligible_slots.each do |date, time|
+  team1 = teams[match_index % team_count]
+  team2 = teams[(match_index + 1) % team_count]
+
+  if team1 == team2
+    team2 = teams[(match_index + 2) % team_count]
+  end
+
+  matches << [date, time, team1, team2]
+  match_index += 2 
 end
 
-File.write(output_file, calendar_entries.join("\n"), encoding: 'UTF-8')
+calendar_lines = matches.map do |date, time, t1, t2|
+  formatted_date = date.strftime("%d.%m.%Y")
+  day_name = date.strftime("%a")
+  "#{formatted_date} (#{day_name}) #{time}: #{t1} vs #{t2}"
+end
 
-puts "Расписание успешно сгенерировано в файл: #{output_file}"
+File.write(output_file, calendar_lines.join("\n"), encoding: 'UTF-8')
+
+
+puts "Команд: #{teams.length}"
+puts "Слоты: #{eligible_slots.length}"
+puts "Матчей: #{matches.length}"
+puts "Результат записан в: #{output_file}"
